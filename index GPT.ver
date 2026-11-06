@@ -5,14 +5,48 @@
 <title>垂直跳測試室</title>
 <style>
 :root{color-scheme:dark;--lime:#cbf66a;--ink:#eff4ed;--muted:#b0bcb5;--edge:#35443e}*{box-sizing:border-box}body{margin:0;background:#101713;color:var(--ink);font:16px/1.6 system-ui,"Microsoft JhengHei",sans-serif}main{max-width:1200px;margin:auto;padding:36px clamp(16px,4vw,56px)}header{border-top:4px solid var(--lime);padding:24px 0}h1,h2,p{margin:0}h1{font-size:clamp(32px,5vw,56px);letter-spacing:-.04em}h2{font-size:20px}p,small{color:var(--muted)}.grid{display:grid;grid-template-columns:1.55fr 1fr;gap:18px}.card{background:#19221d;border:1px solid var(--edge);border-radius:16px;padding:20px}.bar,.actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.screen{margin:16px 0;position:relative;aspect-ratio:4/3;background:radial-gradient(ellipse at center,#25362b,#111914);overflow:hidden;border-radius:9px;display:grid;place-items:center}.screen canvas{width:100%;height:100%;position:absolute;object-fit:contain}.empty{position:absolute;text-align:center;color:var(--muted);pointer-events:none}.empty svg{display:block;width:76px;height:96px;margin:0 auto 12px}.actions{justify-content:flex-start}button{border:1px solid #506054;background:transparent;color:var(--ink);border-radius:8px;padding:9px 15px;font:inherit;font-weight:650;cursor:pointer}button.primary{background:var(--lime);color:#192012;border-color:var(--lime)}button:disabled{opacity:.45;cursor:default}button:focus-visible{outline:3px solid white;outline-offset:3px}.status{color:var(--lime);font-weight:600}#note{min-height:3.2em;margin-top:14px}.metrics{display:grid;grid-template-columns:1fr 1fr;border-block:1px solid var(--edge);margin:18px 0;padding:15px 0}.value{font:600 clamp(30px,4vw,45px)/1.5 Consolas,monospace;color:var(--lime)}.metrics small{margin-left:4px}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:13px 8px;text-align:right;border-bottom:1px solid var(--edge)}th{font-size:14px;color:var(--muted)}th:first-child,td:first-child{text-align:left}.tip{font-size:14px;margin-top:15px}.history{margin-top:18px}.scroll{overflow:auto}#emptyHistory{padding-top:14px}.video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}@media(max-width:800px){.grid{grid-template-columns:1fr}.card{padding:16px}main{padding-top:18px}}[hidden]{display:none!important}
+.grid > .card { min-width: 0; }
+.results { scroll-margin-top: 12px; }
+.results h2 { font-size: 24px; }
+.result-phase { margin-top: 12px; padding: 12px 16px; background: #233124; border-left: 4px solid var(--lime); border-radius: 8px; }
+.result-phase.landing { background: #203033; border-color: #87ddd9; }
+.result-phase h3 { margin: 0 0 8px; font-size: 17px; }
+.angles { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 0; }
+.angles dt { color: #d2dbd5; font-size: 15px; }
+.angles dd { margin: 0; color: var(--lime); font: 700 clamp(36px,4vw,54px)/1.15 Consolas,monospace; }
+.landing dd { color: #87ddd9; }
+.metrics { gap: 8px; margin: 16px 0 0; }
+.metrics .value { font-size: clamp(28px,3.3vw,44px); line-height: 1.25; color: var(--ink); }
+#history td { white-space: nowrap; }
+#history tbody tr:first-child { background: #273526; color: var(--lime); font-weight: 700; }
 </style>
 <main>
 <header><h1>垂直跳測試室</h1><p>測量滯空時間，觀察起跳前下蹲與落地緩衝的髖膝屈曲。</p></header>
 <div class="grid"><section class="card"><div class="bar"><h2>動作擷取</h2><span class="status" id="phase" role="status">待機</span></div>
 <div class="screen"><canvas id="view" width="640" height="480"></canvas><div class="empty" id="placeholder"><svg viewBox="0 0 80 104" fill="none" stroke="#cbf66a" stroke-width="3" aria-hidden="true"><circle cx="44" cy="15" r="8"/><path d="m43 25-13 28 22 16-17 22h14m-17-39 2 24-17 14h13m10-60 14 12 17-9M8 98h64"/></svg>開啟鏡頭或選擇測試影片</div></div>
 <div class="actions"><button id="cam">開啟鏡頭</button><button id="upload">匯入影片</button><input type="file" accept="video/*" id="file" hidden><button class="primary" id="start" disabled>開始測試</button><button id="stop" hidden>停止</button></div><p id="note" role="status">請固定鏡頭，從側面拍攝全身與雙腳。開始時先站穩一秒。</p>
-</section><section class="card"><h2>本次測量</h2><div class="metrics"><div><p>預估跳高</p><span class="value" id="height">—</span><small>cm</small></div><div><p>滯空時間</p><span class="value" id="flight">—</span><small>秒</small></div></div>
-<h2>最大屈曲角度</h2><table><thead><tr><th>階段</th><th>髖關節</th><th>膝關節</th></tr></thead><tbody><tr><td>起跳前下蹲</td><td id="sh">—</td><td id="sk">—</td></tr><tr><td>落地緩衝</td><td id="lh">—</td><td id="lk">—</td></tr></tbody></table><p class="tip">伸直約為 0°。每幀取可辨識側的平均角度，再分別記錄髖與膝的峰值。髖角以軀幹與大腿的側面夾角估算。</p></section></div>
+</section><section class="card results" id="results">
+  <h2 id="resultHeading">最大屈曲角度</h2>
+  <section class="result-phase">
+    <h3>起跳前下蹲</h3>
+    <dl class="angles">
+      <div><dt>髖關節</dt><dd id="sh">—</dd></div>
+      <div><dt>膝關節</dt><dd id="sk">—</dd></div>
+    </dl>
+  </section>
+  <section class="result-phase landing">
+    <h3>落地緩衝</h3>
+    <dl class="angles">
+      <div><dt>髖關節</dt><dd id="lh">—</dd></div>
+      <div><dt>膝關節</dt><dd id="lk">—</dd></div>
+    </dl>
+  </section>
+  <div class="metrics">
+    <div><p>預估跳高</p><span class="value" id="height">—</span><small>cm</small></div>
+    <div><p>滯空時間</p><span class="value" id="flight">—</span><small>秒</small></div>
+  </div>
+  <p class="tip">伸直約為 0°。每幀取可辨識側的平均角度，再分別記錄髖與膝的峰值。髖角以軀幹與大腿的側面夾角估算。</p>
+</section></div>
 <section class="card history"><h2>本次測試紀錄</h2><div class="scroll"><table id="history" hidden><thead><tr><th>跳次</th><th>跳高 (cm)</th><th>滯空 (秒)</th><th>下蹲髖 / 膝</th><th>落地髖 / 膝</th></tr></thead><tbody></tbody></table></div><p id="emptyHistory">完成第一跳後，結果會顯示在這裡。</p></section>
 <video class="video" id="video" muted playsinline preload="auto"></video>
 </main>
@@ -99,7 +133,9 @@ function save(){
   const row=body.insertRow(0);
   for(const value of [number,t.height.toFixed(1),t.flight.toFixed(3),el('sh').textContent+' / '+el('sk').textContent,el('lh').textContent+' / '+el('lk').textContent])row.insertCell().textContent=value;
   el('history').hidden=false;el('emptyHistory').hidden=true;
+  el('resultHeading').textContent='第 '+number+' 跳・最大屈曲角度';
   finish('測試完成','已儲存本頁紀錄。可再次測試或匯入另一段影片。');
+  if(window.matchMedia('(max-width: 800px)').matches)el('results').scrollIntoView({block:'start'});
 }
 function analyze(time,p){
   const t=trial;
@@ -178,6 +214,7 @@ async function run(){
   const id=++runId,token=generation;
   const current=()=>active&&id===runId&&token===generation;
   active=true;controls();trial={state:'cal',base:[]};
+  el('resultHeading').textContent='最大屈曲角度';
   for(const key of ['height','flight','sh','sk','lh','lk'])el(key).textContent='—';
   message('載入模型','首次測試需要連網下載姿勢模型。');
   try{
