@@ -8,17 +8,18 @@
 .grid > .card { min-width: 0; }
 .results { scroll-margin-top: 12px; }
 .results h2 { font-size: 24px; }
-.result-phase { margin-top: 12px; padding: 12px 16px; background: #233124; border-left: 4px solid var(--lime); border-radius: 8px; }
-.result-phase.landing { background: #203033; border-color: #87ddd9; }
+.result-phase { margin-top: 12px; padding: 12px 16px; color: #000; background: #eaf4d8; border-left: 4px solid var(--lime); border-radius: 8px; }
+.result-phase.landing { background: #ddf2f1; border-color: #87ddd9; }
 .result-phase h3 { margin: 0 0 8px; font-size: 17px; }
 .angles { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 0; }
-.angles dt { color: #d2dbd5; font-size: 15px; }
-.angles dd { margin: 0; color: var(--lime); font: 700 clamp(36px,4vw,54px)/1.15 Consolas,monospace; }
-.landing dd { color: #87ddd9; }
-.metrics { gap: 8px; margin: 16px 0 0; }
-.metrics .value { font-size: clamp(28px,3.3vw,44px); line-height: 1.25; color: var(--ink); }
-#history td { white-space: nowrap; }
-#history tbody tr:first-child { background: #273526; color: var(--lime); font-weight: 700; }
+.angles dt { font-size: 15px; }
+.angles dd { margin: 0; font: 700 clamp(36px,4vw,54px)/1.15 Consolas,monospace; }
+.metrics { gap: 8px; margin: 16px 0 0; padding: 15px 12px; background: #f4f6f2; border: 0; border-radius: 8px; }
+.metrics p, .metrics small { color: #39443c; }
+.metrics .value { font-size: clamp(28px,3.3vw,44px); line-height: 1.25; color: #000; }
+#history tbody { background: #f4f6f2; color: #000; }
+#history td { white-space: nowrap; border-color: #ced7cf; }
+#history tbody tr:first-child { background: #eaf4d8; font-weight: 700; }
 </style>
 <main>
 <header><h1>垂直跳測試室</h1><p>測量滯空時間，觀察起跳前下蹲與落地緩衝的髖膝屈曲。</p></header>
