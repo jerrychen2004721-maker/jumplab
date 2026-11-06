@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>垂直跳測試室</title>
+<style>
+:root{color-scheme:dark;--lime:#cbf66a;--ink:#eff4ed;--muted:#b0bcb5;--edge:#35443e}*{box-sizing:border-box}body{margin:0;background:#101713;color:var(--ink);font:16px/1.6 system-ui,"Microsoft JhengHei",sans-serif}main{max-width:1200px;margin:auto;padding:36px clamp(16px,4vw,56px)}header{border-top:4px solid var(--lime);padding:24px 0}h1,h2,p{margin:0}h1{font-size:clamp(32px,5vw,56px);letter-spacing:-.04em}h2{font-size:20px}p,small{color:var(--muted)}.grid{display:grid;grid-template-columns:1.55fr 1fr;gap:18px}.card{background:#19221d;border:1px solid var(--edge);border-radius:16px;padding:20px}.bar,.actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.screen{margin:16px 0;position:relative;aspect-ratio:4/3;background:radial-gradient(ellipse at center,#25362b,#111914);overflow:hidden;border-radius:9px;display:grid;place-items:center}.screen canvas{width:100%;height:100%;position:absolute;object-fit:contain}.empty{position:absolute;text-align:center;color:var(--muted);pointer-events:none}.empty svg{display:block;width:76px;height:96px;margin:0 auto 12px}.actions{justify-content:flex-start}button{border:1px solid #506054;background:transparent;color:var(--ink);border-radius:8px;padding:9px 15px;font:inherit;font-weight:650;cursor:pointer}button.primary{background:var(--lime);color:#192012;border-color:var(--lime)}button:disabled{opacity:.45;cursor:default}button:focus-visible{outline:3px solid white;outline-offset:3px}.status{color:var(--lime);font-weight:600}#note{min-height:3.2em;margin-top:14px}.metrics{display:grid;grid-template-columns:1fr 1fr;border-block:1px solid var(--edge);margin:18px 0;padding:15px 0}.value{font:600 clamp(30px,4vw,45px)/1.5 Consolas,monospace;color:var(--lime)}.metrics small{margin-left:4px}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:13px 8px;text-align:right;border-bottom:1px solid var(--edge)}th{font-size:14px;color:var(--muted)}th:first-child,td:first-child{text-align:left}.tip{font-size:14px;margin-top:15px}.history{margin-top:18px}.scroll{overflow:auto}#emptyHistory{padding-top:14px}.video{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}@media(max-width:800px){.grid{grid-template-columns:1fr}.card{padding:16px}main{padding-top:18px}}[hidden]{display:none!important}
+</style>
+<main>
+<header><h1>垂直跳測試室</h1><p>測量滯空時間，觀察起跳前下蹲與落地緩衝的髖膝屈曲。</p></header>
+<div class="grid"><section class="card"><div class="bar"><h2>動作擷取</h2><span class="status" id="phase" role="status">待機</span></div>
+<div class="screen"><canvas id="view" width="640" height="480"></canvas><div class="empty" id="placeholder"><svg viewBox="0 0 80 104" fill="none" stroke="#cbf66a" stroke-width="3" aria-hidden="true"><circle cx="44" cy="15" r="8"/><path d="m43 25-13 28 22 16-17 22h14m-17-39 2 24-17 14h13m10-60 14 12 17-9M8 98h64"/></svg>開啟鏡頭或選擇測試影片</div></div>
+<div class="actions"><button id="cam">開啟鏡頭</button><button id="upload">匯入影片</button><input type="file" accept="video/*" id="file" hidden><button class="primary" id="start" disabled>開始測試</button><button id="stop" hidden>停止</button></div><p id="note" role="status">請固定鏡頭，從側面拍攝全身與雙腳。開始時先站穩一秒。</p>
+</section><section class="card"><h2>本次測量</h2><div class="metrics"><div><p>預估跳高</p><span class="value" id="height">—</span><small>cm</small></div><div><p>滯空時間</p><span class="value" id="flight">—</span><small>秒</small></div></div>
+<h2>最大屈曲角度</h2><table><thead><tr><th>階段</th><th>髖關節</th><th>膝關節</th></tr></thead><tbody><tr><td>起跳前下蹲</td><td id="sh">—</td><td id="sk">—</td></tr><tr><td>落地緩衝</td><td id="lh">—</td><td id="lk">—</td></tr></tbody></table><p class="tip">伸直約為 0°。每幀取可辨識側的平均角度，再分別記錄髖與膝的峰值。髖角以軀幹與大腿的側面夾角估算。</p></section></div>
+<section class="card history"><h2>本次測試紀錄</h2><div class="scroll"><table id="history" hidden><thead><tr><th>跳次</th><th>跳高 (cm)</th><th>滯空 (秒)</th><th>下蹲髖 / 膝</th><th>落地髖 / 膝</th></tr></thead><tbody></tbody></table></div><p id="emptyHistory">完成第一跳後，結果會顯示在這裡。</p></section>
+<video class="video" id="video" muted playsinline preload="auto"></video>
+</main>
+<script>
+'use strict';
+const el=id=>document.getElementById(id);
+const video=el('video'), canvas=el('view'), ctx=canvas.getContext('2d');
+const cdn='https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/';
+let enginePromise, engine, source='', url='', generation=0, active=false, ready=false, pending=Promise.resolve(), receiver=null, trial;
+function loadEngine(){
+  if(!enginePromise) enginePromise=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src=cdn+'pose.js';
+    script.onload=()=>{
+      try{
+        engine=new Pose({locateFile:file=>cdn+file});
+        engine.setOptions({modelComplexity:1,smoothLandmarks:false,minDetectionConfidence:.55,minTrackingConfidence:.55});
+        engine.onResults(r=>receiver?.(r));
+        resolve(engine);
+      }catch(e){reject(e)}
+    };
+    script.onerror=()=>reject(Error('模型下載失敗，請確認網路後重試。'));
+    document.head.append(script);
+  }).catch(e=>{enginePromise=null;throw e});
+  return enginePromise;
+}
+function controls(){
+  el('start').disabled=!ready||active;
+  el('stop').hidden=!active;
+  el('cam').textContent=source==='camera'?'關閉鏡頭':'開啟鏡頭';
+}
+function message(phase,note){el('phase').textContent=phase;el('note').textContent=note}
+function release(){
+  generation++; active=false; ready=false;
+  video.srcObject?.getTracks().forEach(track=>track.stop());
+  video.pause();video.srcObject=null;video.removeAttribute('src');video.load();
+  if(url) URL.revokeObjectURL(url);
+  url='';source='';ctx.clearRect(0,0,canvas.width,canvas.height);el('placeholder').hidden=false;controls();
+}
+function draw(image,points){
+  if(canvas.width!==video.videoWidth||canvas.height!==video.videoHeight){canvas.width=video.videoWidth;canvas.height=video.videoHeight}
+  ctx.drawImage(image,0,0,canvas.width,canvas.height);
+  el('placeholder').hidden=true;
+  if(!points)return;
+  for(const chain of [[11,23,25,27,31],[12,24,26,28,32],[11,12],[23,24]]){
+    for(let i=1;i<chain.length;i++){
+      const a=points[chain[i-1]],b=points[chain[i]];
+      if(!visible(a)||!visible(b))continue;
+      ctx.strokeStyle='#cbf66a';ctx.lineWidth=canvas.width/220;ctx.beginPath();
+      ctx.moveTo(a.x*canvas.width,a.y*canvas.height);ctx.lineTo(b.x*canvas.width,b.y*canvas.height);ctx.stroke();
+    }
+  }
+}
+function visible(p){return p&&p.visibility>=.5&&p.x>=0&&p.x<=1&&p.y>=0&&p.y<=1}
+function flex(a,b,c,aspect){
+  const x=(a.x-b.x)*aspect,y=a.y-b.y,u=(c.x-b.x)*aspect,v=c.y-b.y;
+  const length=Math.hypot(x,y)*Math.hypot(u,v);
+  return length>1e-6?180-Math.acos(Math.max(-1,Math.min(1,(x*u+y*v)/length)))*180/Math.PI:NaN;
+}
+function sample(points){
+  if(!points)return null;
+  const sides=[];
+  for(const offset of [0,1]){
+    const [s,h,k,a]=[11,23,25,27].map(i=>points[i+offset]);
+    const toes=points[31+offset];
+    if(![s,h,k,a,toes].every(visible))continue;
+    const ratio=canvas.width/canvas.height;
+    const hip=flex(s,h,k,ratio),knee=flex(h,k,a,ratio);
+    if(Number.isFinite(hip)&&Number.isFinite(knee))sides.push({hip,knee,foot:Math.max(a.y,toes.y),leg:Math.abs(h.y-a.y)});
+  }
+  if(!sides.length)return null;
+  const mean=key=>sides.reduce((sum,s)=>sum+s[key],0)/sides.length;
+  return {hip:mean('hip'),knee:mean('knee'),foot:Math.max(...sides.map(s=>s.foot)),leg:mean('leg')};
+}
+function finish(phase,note){active=false;controls();message(phase,note)}
+function peaks(prefix,p){
+  for(const [key,value] of [['h',p.hip],['k',p.knee]]){
+    const id=prefix+key;
+    trial[id]=Math.max(trial[id]??0,value);el(id).textContent=Math.round(trial[id])+'°';
+  }
+}
+function save(){
+  const t=trial, body=el('history').tBodies[0],number=body.rows.length+1;
+  const row=body.insertRow(0);
+  for(const value of [number,t.height.toFixed(1),t.flight.toFixed(3),el('sh').textContent+' / '+el('sk').textContent,el('lh').textContent+' / '+el('lk').textContent])row.insertCell().textContent=value;
+  el('history').hidden=false;el('emptyHistory').hidden=true;
+  finish('測試完成','已儲存本頁紀錄。可再次測試或匯入另一段影片。');
+}
+function analyze(time,p){
+  const t=trial;
+  t.first??=time;
+  if(time-t.first>45){finish('測試逾時','請確認全身與雙腳清楚入鏡，再重新測試。');return}
+  if(t.last!=null&&time-t.last>.35){
+    if(t.state==='air'||t.state==='landing'){finish('追蹤中斷','跳躍期間影格不足，請重新拍攝或匯入較清楚的影片。');return}
+    t.state='cal';t.base=[];t.sh=t.sk=null;el('sh').textContent=el('sk').textContent='—';t.up=null;
+  }
+  if(!p){if(t.state==='cal')t.base=[];el('note').textContent='請讓肩、髖、膝與腳尖完整入鏡。';return}
+  t.last=time;
+  if(t.state==='cal'){
+    if(p.knee>30||p.leg<.07){t.base=[];message('站立校正','請伸直膝蓋、站穩後再開始下蹲。');return}
+    if(t.base.length&&Math.abs(t.base[0].foot-p.foot)>.015)t.base=[];
+    t.base.push({time,foot:p.foot});
+    if(time-t.base[0].time<.55)return;
+    t.floor=t.base.reduce((n,b)=>n+b.foot,0)/t.base.length;
+    t.threshold=Math.max(.012,p.leg*.065);t.state='ground';message('等待起跳','校正完成，請下蹲後垂直起跳。');
+  }
+  const rise=t.floor-p.foot;
+  if(t.state==='ground'){
+    if(rise<t.threshold){t.up=null;peaks('s',p);return}
+    t.up??=time;
+    if(time-t.up>=.035){t.state='air';message('滯空','正在偵測落地。')}
+    return;
+  }
+  if(t.state==='air'){
+    if(rise>t.threshold)return;
+    t.flight=time-t.up;
+    if(t.flight<.15){t.state='ground';t.up=null;message('等待起跳','請完成一次垂直跳。');return}
+    if(t.flight>1.5){finish('請重新測試','未能可靠辨識落地時間。');return}
+    t.height=9.81*t.flight*t.flight*100/8;t.contact=time;t.state='landing';
+    el('height').textContent=t.height.toFixed(1);el('flight').textContent=t.flight.toFixed(3);
+    message('落地緩衝','請完成緩衝後自然站起。');
+  }
+  if(t.state==='landing'){
+    peaks('l',p);
+    const recovering=p.knee<t.lk-8&&p.hip<t.lh-5;
+    if(recovering)t.recovery??=time;else t.recovery=null;
+    if((time-t.contact>=.25&&t.recovery!=null&&time-t.recovery>=.12)||time-t.contact>=1.2)save();
+  }
+}
+function eventOnce(name,action){
+  return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>done(Error('影片讀取逾時，請重試。')),12000);
+    const ok=()=>done(),bad=()=>done(Error('瀏覽器無法讀取此影片，請改用 MP4 格式。'));
+    function done(error){clearTimeout(timer);video.removeEventListener(name,ok);video.removeEventListener('error',bad);error?reject(error):resolve()}
+    video.addEventListener(name,ok);video.addEventListener('error',bad);
+    try{action()}catch(e){done(e)}
+  });
+}
+async function select(kind,file){
+  release();const token=generation;source=kind;controls();message('準備中','正在開啟影像來源…');
+  try{
+    if(kind==='camera'){
+      if(!navigator.mediaDevices?.getUserMedia)throw Error('請透過 HTTPS 或 localhost 開啟此頁並允許使用鏡頭。');
+      const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:960},height:{ideal:720}},audio:false});
+      if(token!==generation){stream.getTracks().forEach(track=>track.stop());return}
+      video.srcObject=stream;await video.play();
+    }else{
+      url=URL.createObjectURL(file);await eventOnce('loadeddata',()=>{video.src=url;video.load()});
+      if(!Number.isFinite(video.duration))throw Error('無法取得影片長度，請改用有完整時間資訊的影片。');
+    }
+    if(token!==generation)return;
+    ready=true;controls();draw(video);
+    message('就緒',kind==='camera'?'站定位後按「開始測試」，等待站立校正完成再起跳。':'影片開頭請保留一秒站立，落地後保留至少一秒緩衝。');
+    if(kind==='camera'){
+      function preview(){if(token!==generation)return;if(!active&&video.readyState>=2)draw(video);requestAnimationFrame(preview)}
+      requestAnimationFrame(preview);
+    }
+  }catch(e){if(token===generation){release();message('無法開啟',e.name==='NotAllowedError'?'請允許鏡頭權限，或改用匯入影片。':e.message)}}
+}
+let runId=0;
+async function run(){
+  if(!ready||active)return;
+  const id=++runId,token=generation;
+  const current=()=>active&&id===runId&&token===generation;
+  active=true;controls();trial={state:'cal',base:[]};
+  for(const key of ['height','flight','sh','sk','lh','lk'])el(key).textContent='—';
+  message('載入模型','首次測試需要連網下載姿勢模型。');
+  try{
+    const pose=await loadEngine();await pending.catch(()=>{});
+    if(!current())return;
+    pending=(async()=>{await pose.initialize();if(current())await pose.reset()})();
+    await pending;if(!current())return;
+    message('站立校正','請先站穩，保持雙腳著地。');
+    let index=0,last=-1;
+    while(current()){
+      let time;
+      if(source==='file'){
+        time=index++/30;
+        if(time>=video.duration){finish('影片已結束','未取得完整跳躍。請確認影片包含站立、起跳與完整落地緩衝。');break}
+        if(Math.abs(video.currentTime-time)>.001)await eventOnce('seeked',()=>{video.currentTime=time});
+      }else{
+        await new Promise(requestAnimationFrame);
+        time=video.currentTime;if(time===last)continue;last=time;
+      }
+      if(!current())break;
+      receiver=r=>{if(current()){draw(r.image,r.poseLandmarks);analyze(time,sample(r.poseLandmarks))}};
+      pending=pose.send({image:video});await pending;
+    }
+  }catch(e){if(current())finish('分析中斷','請確認網路、影片格式或瀏覽器的硬體加速設定後重試。 '+e.message)}
+}
+el('start').onclick=run;
+el('stop').onclick=()=>{runId++;finish('已停止','可重新開始測試。')};
+el('cam').onclick=()=>{if(source==='camera'){release();message('待機','鏡頭已關閉。')}else select('camera')};
+el('upload').onclick=()=>el('file').click();
+el('file').onchange=e=>{const file=e.target.files[0];e.target.value='';if(file)select('file',file)};
+window.addEventListener('pagehide',release);
+</script>
+</html>
